@@ -6,6 +6,18 @@ Aplicativo acadêmico em JavaScript e React Native.
 
 No Terminal, dentro desta pasta:
 
+    npm install
+
+Ou se preferir baixar as dependências manualmente:
+
+    npx expo install @react-navigation/native react-native-screens react-native-safe-area-context @react-native-async-storage/async-storage expo-notifications
+
+Segundo comando para baixar as dependências manualmente:
+    
+    npm install @react-navigation/native-stack @react-navigation/bottom-tabs
+
+Comando para iniciar o projeto:
+
     npm start
 
 Abra o Expo Go no Android e leia o QR Code.
