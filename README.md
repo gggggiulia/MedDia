@@ -20,6 +20,10 @@ Comando para iniciar o projeto:
 
     npm start
 
+ou
+
+    npx expo start
+
 Abra o Expo Go no Android e leia o QR Code.
 Celular e computador devem estar na mesma rede Wi-Fi.
 
