@@ -53,14 +53,15 @@ export default function History() {
           />
           <View style={[s.row, { marginBottom: 20 }]}>
             {[
-              ['all', 'Tudo'],
-              ['dose', 'Doses'],
-              ['diary', 'Diário'],
+              ['all', ' Tudo '],
+              ['dose', ' Doses '],
+              ['diary', 'Diário '],
             ].map(([value, title]) => (
               <Button
                 key={value}
                 secondary={filter !== value}
                 title={title}
+                style={{ flex: 1 }}
                 onPress={() => setFilter(value)}
               />
             ))}

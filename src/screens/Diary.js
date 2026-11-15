@@ -152,7 +152,7 @@ export default function Diary() {
       )}
 
       <CareButton
-        title={busy ? 'Salvando…' : 'Salvar meu registro'}
+        title={busy ? 'Salvando…' : '   Salvar meu registro    '}
         disabled={busy}
         onPress={save}
       />

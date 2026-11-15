@@ -109,7 +109,8 @@ export const s = StyleSheet.create({
   },
   secondary: { backgroundColor: colors.pale },
   buttonText: {
-    color: 'white', fontWeight: '700', fontSize: 14, textAlign: 'center',
+    flexShrink: 1, color: 'white', fontWeight: '700',
+    fontSize: 14, textAlign: 'center',
   },
   input: {
     borderWidth: 1, borderColor: colors.border,

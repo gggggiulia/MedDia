@@ -65,7 +65,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   secondary: { backgroundColor: care.pale },
-  buttonText: { fontSize: 15, fontWeight: '700', color: 'white' },
+  buttonText: {
+    flexShrink: 1, fontSize: 15, fontWeight: '700',
+    color: 'white', textAlign: 'center',
+  },
   choice: {
     minHeight: 78, flexBasis: '48%', flexGrow: 0,
     paddingVertical: 13, paddingHorizontal: 12, borderRadius: 19,

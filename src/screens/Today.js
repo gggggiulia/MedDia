@@ -57,7 +57,7 @@ export default function Today({ navigation }) {
               Seu cuidado, um horário de cada vez.
             </Text>
             <View style={styles.sectionHeading}>
-              <Text style={styles.sectionTitle}>Medicamentos do dia</Text>
+              <Text style={styles.sectionTitle}>Medicamentos do dia     </Text>
               {!!doses.length && (
                 <Text style={styles.count}>{taken}/{doses.length} tomadas</Text>
               )}
@@ -72,7 +72,7 @@ export default function Today({ navigation }) {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>✚</Text>
-            <Text style={styles.emptyTitle}>Seu cuidado começa por aqui</Text>
+            <Text style={styles.emptyTitle}>Seu cuidado começa por aqui      </Text>
             <Text style={styles.emptyText}>
               Os horários aparecerão aqui depois que você fizer o cadastro
               na aba Medicamentos.
@@ -138,7 +138,7 @@ export default function Today({ navigation }) {
         style={({ pressed }) => [styles.floating, pressed && { opacity: 0.8 }]}
       >
         <Text style={styles.floatingIcon}>＋</Text>
-        <Text style={styles.floatingText}>Como estou</Text>
+        <Text style={styles.floatingText}>Como estou?   </Text>
       </Pressable>
     </View>
   );
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
     fontWeight: '800', marginBottom: 15,
   },
   cardTop: { flexDirection: 'row', alignItems: 'center', gap: 17 },
-  timeBlock: { flexShrink: 0 },
+  timeBlock: { flexShrink: 0, minWidth: 92 },
   time: { fontSize: 30, fontWeight: '700', color: care.ink },
   timeLabel: { color: care.muted, fontSize: 12, marginTop: 2 },
   medicineInfo: { flex: 1 },
