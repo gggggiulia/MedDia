@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
   secondary: { backgroundColor: care.pale },
   buttonText: { fontSize: 15, fontWeight: '700', color: 'white' },
   choice: {
-    minHeight: 78, flexBasis: 105, flexGrow: 1,
+    minHeight: 78, flexBasis: '48%', flexGrow: 0,
     paddingVertical: 13, paddingHorizontal: 12, borderRadius: 19,
     backgroundColor: care.white, borderWidth: 2, borderColor: care.border,
     alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -75,6 +75,7 @@ const styles = StyleSheet.create({
   selected: { backgroundColor: care.pale, borderColor: care.accent },
   emoji: { fontSize: 27 },
   choiceText: {
+    alignSelf: 'stretch', flexShrink: 1,
     color: care.ink, textAlign: 'center', fontSize: 14, fontWeight: '600',
   },
   check: { color: care.accent, fontWeight: '800', fontSize: 13 },

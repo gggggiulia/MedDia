@@ -168,9 +168,9 @@ export default function Diary() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: care.bg },
   content: { padding: 22, paddingBottom: 40 },
-  intro: { marginBottom: 32 },
+  intro: { marginBottom: 16 },
   eyebrow: {
-    color: care.accent, fontSize: 10, letterSpacing: 1.4, fontWeight: '700',
+    color: care.accent, fontSize: 12, letterSpacing: 1.4, fontWeight: '700',
   },
   title: {
     color: care.ink, fontSize: 34, fontWeight: '800',
