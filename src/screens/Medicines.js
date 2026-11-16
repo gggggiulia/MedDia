@@ -2,10 +2,23 @@ import React from 'react';
 import { Alert, FlatList, Text, View } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { Button, Card, Empty, Heading, s } from '../components/UI';
+import { testNotification } from '../services/notifications';
 import { colors } from '../theme';
 
 export default function Medicines({ navigation }) {
   const { medicines, deleteMedicine, busy } = useApp();
+
+  async function handleTestAlert() {
+    try {
+      await testNotification();
+      Alert.alert(
+        'Teste agendado',
+        'Aguarde 5 segundos para verificar se a notificação aparece no seu aparelho.'
+      );
+    } catch (e) {
+      Alert.alert('Não foi possível testar', e.message);
+    }
+  }
 
   function remove(item) {
     Alert.alert(
@@ -46,6 +59,11 @@ export default function Medicines({ navigation }) {
           <Button
             title="+ Adicionar medicamento"
             onPress={() => navigation.navigate('MedicineForm')}
+          />
+          <Button
+            secondary
+            title="🔔 Testar som e notificação"
+            onPress={handleTestAlert}
           />
           <View style={{ height: 20 }} />
         </>

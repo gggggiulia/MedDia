@@ -15,7 +15,7 @@ export function CareButton({ title, onPress, secondary, disabled, style }) {
       onPress={onPress}
       style={({ pressed }) => [
         styles.button, secondary && styles.secondary, style,
-        (pressed || disabled) && { opacity: 0.55 },
+        (pressed || disabled) && { opacity: 0.55, transform: [{ scale: 0.97 }] },
       ]}
     >
       <Text style={[styles.buttonText, secondary && { color: care.accent }]}>
@@ -36,14 +36,11 @@ export function Choice({ label, emoji, selected, onPress, radio, disabled }) {
       style={({ pressed }) => [
         styles.choice,
         selected && styles.selected,
-        pressed && { opacity: 0.65 },
+        pressed && { opacity: 0.65, transform: [{ scale: 0.96 }] },
       ]}
     >
-      {emoji && <Text style={styles.emoji}>{emoji}</Text>}
-      <Text style={[styles.choiceText, selected && { color: care.accent }]}>
-        {label}
-      </Text>
-      {selected && <Text style={styles.check}>✓</Text>}
+      <Text style={styles.emoji}>{emoji}</Text>
+      <Text style={styles.choiceText}>{label}</Text>
     </Pressable>
   );
 }
