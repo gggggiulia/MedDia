@@ -1,37 +1,73 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
-  Alert, Text, View, Switch, KeyboardAvoidingView, Platform,
-} from 'react-native';
-import { useApp } from '../context/AppContext';
-import {
-  Button, Card, Field, Heading, Page, s,
-} from '../components/UI';
-import { parseTimes } from '../utils/domain';
-import { colors } from '../theme';
+  Alert,
+  Text,
+  View,
+  Switch,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
+import { useApp } from "../context/AppContext";
+import { Button, Card, Field, Heading, Page, s } from "../components/UI";
+import { parseTimes } from "../utils/domain";
+import { colors } from "../theme";
 
 export default function MedicineForm({ route, navigation }) {
   const { medicines, saveMedicine, busy } = useApp();
-  const old = medicines.find(m => m.id === route.params?.id);
+  const old = medicines.find((m) => m.id === route.params?.id);
 
-  const [name, setName] = useState(old?.name || '');
-  const [dose, setDose] = useState(old?.dose || '');
-  const [times, setTimes] = useState(old?.times.join(', ') || '08:00');
-  const [notes, setNotes] = useState(old?.notes || '');
+  const [name, setName] = useState(old?.name || "");
+  const [dose, setDose] = useState(old?.dose || "");
+  const [times, setTimes] = useState(old?.times.join(", ") || "08:00");
+  const [stock, setStock] = useState(
+    typeof old?.stock === "number" ? String(old.stock) : ""
+  );
+  const [lowStockAlert, setLowStockAlert] = useState(
+    typeof old?.lowStockAlert === "number" ? String(old.lowStockAlert) : "5"
+  );
+  const [notes, setNotes] = useState(old?.notes || "");
   const [reminders, setReminders] = useState(old?.reminders ?? true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   async function save() {
-    setError('');
+    setError("");
 
     try {
       if (!name.trim() || !dose.trim()) {
-        throw new Error('Preencha o nome e a dose do medicamento.');
+        throw new Error("Preencha o nome e a dose do medicamento.");
       }
 
       const parsed = parseTimes(times);
 
       if (parsed.length > 12) {
-        throw new Error('Cadastre até 12 horários por medicamento.');
+        throw new Error("Cadastre até 12 horários por medicamento.");
+      }
+
+      let parsedStock = null;
+      let parsedAlert = 5;
+      let parsedPackSize = old?.packSize ?? null;
+
+      if (stock.trim() !== "") {
+        const num = Number(stock.trim());
+        if (!Number.isInteger(num) || num < 0 || num > 9999) {
+          throw new Error(
+            "Informe uma quantidade inteira válida para o estoque (ex.: 28)."
+          );
+        }
+        parsedStock = num;
+        if (!parsedPackSize || num > parsedPackSize) {
+          parsedPackSize = num;
+        }
+
+        if (lowStockAlert.trim() !== "") {
+          const alertNum = Number(lowStockAlert.trim());
+          if (!Number.isInteger(alertNum) || alertNum < 0 || alertNum > 9999) {
+            throw new Error(
+              "Informe um número inteiro válido para o alerta de reposição."
+            );
+          }
+          parsedAlert = alertNum;
+        }
       }
 
       const warning = await saveMedicine({
@@ -39,11 +75,14 @@ export default function MedicineForm({ route, navigation }) {
         name: name.trim(),
         dose: dose.trim(),
         times: parsed,
+        stock: parsedStock,
+        packSize: parsedPackSize,
+        lowStockAlert: parsedAlert,
         notes: notes.trim(),
         reminders,
       });
 
-      if (warning) Alert.alert('Confira os lembretes', warning);
+      if (warning) Alert.alert("Confira os lembretes", warning);
       navigation.goBack();
     } catch (e) {
       setError(e.message);
@@ -53,11 +92,11 @@ export default function MedicineForm({ route, navigation }) {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <Page>
         <Heading
-          title={old ? 'Editar medicamento' : 'Novo medicamento'}
+          title={old ? "Editar medicamento" : "Novo medicamento"}
           subtitle="Preencha de acordo com a sua prescrição."
         />
 
@@ -87,6 +126,26 @@ export default function MedicineForm({ route, navigation }) {
         />
 
         <Field
+          label="Quantidade em estoque (opcional)"
+          value={stock}
+          onChangeText={setStock}
+          placeholder="Ex.: 30 (desconta automaticamente ao tomar)"
+          keyboardType="number-pad"
+          maxLength={4}
+        />
+
+        {stock.trim() !== "" && (
+          <Field
+            label="Avisar reposição quando restar"
+            value={lowStockAlert}
+            onChangeText={setLowStockAlert}
+            placeholder="Ex.: 5"
+            keyboardType="number-pad"
+            maxLength={4}
+          />
+        )}
+
+        <Field
           label="Observações (opcional)"
           value={notes}
           onChangeText={setNotes}
@@ -96,7 +155,7 @@ export default function MedicineForm({ route, navigation }) {
         />
 
         <Card>
-          <View style={[s.row, { justifyContent: 'space-between' }]}>
+          <View style={[s.row, { justifyContent: "space-between" }]}>
             <Text style={s.label}>Lembretes com som</Text>
             <Switch
               accessibilityLabel="Ativar lembretes com som"
@@ -106,18 +165,20 @@ export default function MedicineForm({ route, navigation }) {
             />
           </View>
           <Text style={s.body}>
-            Notificações todos os dias nos horários cadastrados.
-            Você poderá desligá-las editando este cadastro.
+            Notificações todos os dias nos horários cadastrados. Você poderá
+            desligá-las editando este cadastro.
           </Text>
         </Card>
 
         {!!error && (
-          <Text accessibilityRole="alert" style={s.error}>{error}</Text>
+          <Text accessibilityRole="alert" style={s.error}>
+            {error}
+          </Text>
         )}
 
         <Button
           disabled={busy}
-          title={busy ? 'Salvando…' : 'Salvar medicamento'}
+          title={busy ? "Salvando…" : "Salvar medicamento"}
           onPress={save}
         />
         <Button

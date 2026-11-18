@@ -1,13 +1,18 @@
 import React, {
-  createContext, useContext, useEffect, useRef, useState,
-} from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  cancelNotifications, scheduleMedicine,
-} from '../services/notifications';
-import { uid } from '../utils/domain';
+  cancelNotifications,
+  scheduleMedicine,
+} from "../services/notifications";
+import { uid } from "../utils/domain";
 
-const KEY = '@meddia/v1';
+const KEY = "@meddia/v1";
 const initial = { medicines: [], records: [], entries: [] };
 const Context = createContext(null);
 
@@ -17,10 +22,10 @@ export function AppProvider({ children }) {
   const locked = useRef(false);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
-  const [loadError, setLoadError] = useState('');
+  const [loadError, setLoadError] = useState("");
 
   async function load() {
-    setLoadError('');
+    setLoadError("");
 
     try {
       const raw = await AsyncStorage.getItem(KEY);
@@ -31,7 +36,7 @@ export function AppProvider({ children }) {
         !Array.isArray(saved.records) ||
         !Array.isArray(saved.entries)
       ) {
-        throw new Error('Dados inválidos');
+        throw new Error("Dados inválidos");
       }
 
       current.current = saved;
@@ -39,12 +44,14 @@ export function AppProvider({ children }) {
       setReady(true);
     } catch {
       setLoadError(
-        'Não foi possível ler os dados salvos. Tente novamente; seus dados não serão substituídos.'
+        "Não foi possível ler os dados salvos. Tente novamente; seus dados não serão substituídos."
       );
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   async function commit(next) {
     await AsyncStorage.setItem(KEY, JSON.stringify(next));
@@ -54,7 +61,7 @@ export function AppProvider({ children }) {
 
   async function exclusive(action) {
     if (locked.current) {
-      throw new Error('Aguarde a operação atual terminar.');
+      throw new Error("Aguarde a operação atual terminar.");
     }
 
     locked.current = true;
@@ -68,126 +75,179 @@ export function AppProvider({ children }) {
     }
   }
 
-  const saveMedicine = values => exclusive(async () => {
-    const old = current.current.medicines.find(m => m.id === values.id);
+  const saveMedicine = (values) =>
+    exclusive(async () => {
+      const old = current.current.medicines.find((m) => m.id === values.id);
 
-    const med = {
-      ...values,
-      id: old?.id || uid(),
-      createdAt: old?.createdAt || new Date().toISOString(),
-      notificationIds: [],
-    };
+      const med = {
+        ...values,
+        id: old?.id || uid(),
+        createdAt: old?.createdAt || new Date().toISOString(),
+        notificationIds: [],
+      };
 
-    let warning = '';
+      let warning = "";
 
-    if (med.reminders) {
-      try {
-        med.notificationIds = await scheduleMedicine(med);
-      } catch (e) {
-        med.reminders = false;
-        warning =
-          `Medicamento salvo, mas os lembretes ficaram desligados. ${e.message}`;
+      if (med.reminders) {
+        try {
+          med.notificationIds = await scheduleMedicine(med);
+        } catch (e) {
+          med.reminders = false;
+          warning = `Medicamento salvo, mas os lembretes ficaram desligados. ${e.message}`;
+        }
       }
-    }
 
-    try {
+      try {
+        await cancelNotifications(old?.notificationIds);
+
+        await commit({
+          ...current.current,
+          medicines: old
+            ? current.current.medicines.map((m) => (m.id === med.id ? med : m))
+            : [...current.current.medicines, med],
+        });
+      } catch {
+        await cancelNotifications(med.notificationIds);
+
+        if (old?.reminders) {
+          try {
+            const ids = await scheduleMedicine(old);
+
+            await commit({
+              ...current.current,
+              medicines: current.current.medicines.map((m) =>
+                m.id === old.id ? { ...m, notificationIds: ids } : m
+              ),
+            });
+          } catch {
+            // O erro abaixo orienta a conferir o cadastro e os lembretes.
+          }
+        }
+
+        throw new Error(
+          "Não foi possível salvar. Confira o cadastro e os lembretes e tente novamente."
+        );
+      }
+
+      return warning;
+    });
+
+  const deleteMedicine = (id) =>
+    exclusive(async () => {
+      const old = current.current.medicines.find((m) => m.id === id);
       await cancelNotifications(old?.notificationIds);
 
       await commit({
         ...current.current,
-        medicines: old
-          ? current.current.medicines.map(m => m.id === med.id ? med : m)
-          : [...current.current.medicines, med],
+        medicines: current.current.medicines.filter((m) => m.id !== id),
       });
-    } catch {
-      await cancelNotifications(med.notificationIds);
+    });
 
-      if (old?.reminders) {
-        try {
-          const ids = await scheduleMedicine(old);
+  const restockMedicine = (id, amount) =>
+    exclusive(async () => {
+      const medicines = current.current.medicines.map((m) => {
+        if (m.id !== id) return m;
+        const currentStock = typeof m.stock === "number" ? m.stock : 0;
+        return { ...m, stock: currentStock + amount };
+      });
 
-          await commit({
-            ...current.current,
-            medicines: current.current.medicines.map(m =>
-              m.id === old.id ? { ...m, notificationIds: ids } : m
-            ),
-          });
-        } catch {
-          // O erro abaixo orienta a conferir o cadastro e os lembretes.
-        }
+      await commit({ ...current.current, medicines });
+    });
+
+  const markDose = (dose, status) =>
+    exclusive(async () => {
+      const prevRecord = current.current.records.find(
+        (r) => r.key === dose.key
+      );
+
+      const record = {
+        key: dose.key,
+        id: uid(),
+        medicineId: dose.med.id,
+        medicineName: dose.med.name,
+        dose: dose.med.dose,
+        scheduledTime: dose.time,
+        status,
+        at: new Date().toISOString(),
+      };
+
+      // Atualiza estoque automaticamente ao marcar como tomada
+      let medicines = current.current.medicines;
+      if (status === "taken" && prevRecord?.status !== "taken") {
+        medicines = medicines.map((m) => {
+          if (m.id !== dose.med.id || typeof m.stock !== "number") return m;
+          return { ...m, stock: Math.max(0, m.stock - 1) };
+        });
       }
 
-      throw new Error(
-        'Não foi possível salvar. Confira o cadastro e os lembretes e tente novamente.'
-      );
-    }
-
-    return warning;
-  });
-
-  const deleteMedicine = id => exclusive(async () => {
-    const old = current.current.medicines.find(m => m.id === id);
-    await cancelNotifications(old?.notificationIds);
-
-    await commit({
-      ...current.current,
-      medicines: current.current.medicines.filter(m => m.id !== id),
+      await commit({
+        ...current.current,
+        medicines,
+        records: [
+          ...current.current.records.filter((r) => r.key !== dose.key),
+          record,
+        ],
+      });
     });
-  });
 
-  const markDose = (dose, status) => exclusive(async () => {
-    const record = {
-      key: dose.key,
-      id: uid(),
-      medicineId: dose.med.id,
-      medicineName: dose.med.name,
-      dose: dose.med.dose,
-      scheduledTime: dose.time,
-      status,
-      at: new Date().toISOString(),
-    };
+  const undoDose = (key) =>
+    exclusive(async () => {
+      const prevRecord = current.current.records.find((r) => r.key === key);
 
-    await commit({
-      ...current.current,
-      records: [
-        ...current.current.records.filter(r => r.key !== dose.key),
-        record,
-      ],
+      // Devolve 1 unidade ao estoque se a dose desfeita estava marcada como tomada
+      let medicines = current.current.medicines;
+      if (prevRecord?.status === "taken") {
+        medicines = medicines.map((m) => {
+          if (m.id !== prevRecord.medicineId || typeof m.stock !== "number") {
+            return m;
+          }
+          return { ...m, stock: m.stock + 1 };
+        });
+      }
+
+      await commit({
+        ...current.current,
+        medicines,
+        records: current.current.records.filter((r) => r.key !== key),
+      });
     });
-  });
 
-  const undoDose = key => exclusive(() => commit({
-    ...current.current,
-    records: current.current.records.filter(r => r.key !== key),
-  }));
+  const addEntry = (values) =>
+    exclusive(() =>
+      commit({
+        ...current.current,
+        entries: [
+          { ...values, id: uid(), at: new Date().toISOString() },
+          ...current.current.entries,
+        ],
+      })
+    );
 
-  const addEntry = values => exclusive(() => commit({
-    ...current.current,
-    entries: [
-      { ...values, id: uid(), at: new Date().toISOString() },
-      ...current.current.entries,
-    ],
-  }));
-
-  const deleteEntry = id => exclusive(() => commit({
-    ...current.current,
-    entries: current.current.entries.filter(e => e.id !== id),
-  }));
+  const deleteEntry = (id) =>
+    exclusive(() =>
+      commit({
+        ...current.current,
+        entries: current.current.entries.filter((e) => e.id !== id),
+      })
+    );
 
   return (
-    <Context.Provider value={{
-      ...data,
-      ready,
-      busy,
-      loadError,
-      retryLoad: load,
-      saveMedicine,
-      deleteMedicine,
-      markDose,
-      undoDose,
-      addEntry,
-      deleteEntry,
-    }}>
+    <Context.Provider
+      value={{
+        ...data,
+        ready,
+        busy,
+        loadError,
+        retryLoad: load,
+        saveMedicine,
+        deleteMedicine,
+        restockMedicine,
+        markDose,
+        undoDose,
+        addEntry,
+        deleteEntry,
+      }}
+    >
       {children}
     </Context.Provider>
   );
