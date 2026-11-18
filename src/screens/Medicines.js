@@ -1,41 +1,49 @@
-import React from 'react';
-import { Alert, FlatList, Text, View } from 'react-native';
-import { useApp } from '../context/AppContext';
-import { Button, Card, Empty, Heading, s } from '../components/UI';
-import { testNotification } from '../services/notifications';
-import { colors } from '../theme';
+import React from "react";
+import { Alert, FlatList, Text, View } from "react-native";
+import { useApp } from "../context/AppContext";
+import { Button, Card, Empty, Heading, s } from "../components/UI";
+import { testNotification } from "../services/notifications";
+import { colors } from "../theme";
 
 export default function Medicines({ navigation }) {
   const { medicines, deleteMedicine, busy } = useApp();
 
   async function handleTestAlert() {
     try {
-      await testNotification();
-      Alert.alert(
-        'Teste agendado',
-        'Aguarde 5 segundos para verificar se a notificação aparece no seu aparelho.'
-      );
+      const result = await testNotification();
+
+      if (result?.simulated) {
+        Alert.alert(
+          "Simulação no Expo Go",
+          "Você sentiu a vibração? No Expo Go o Android bloqueia canais de notificação em segundo plano, mas no APK gerado do MedDia o alerta sonoro dispara normalmente."
+        );
+      } else {
+        Alert.alert(
+          "Teste agendado",
+          "Aguarde 5 segundos para verificar se a notificação aparece no seu aparelho."
+        );
+      }
     } catch (e) {
-      Alert.alert('Não foi possível testar', e.message);
+      Alert.alert("Não foi possível testar", e.message);
     }
   }
 
   function remove(item) {
     Alert.alert(
-      'Excluir medicamento?',
+      "Excluir medicamento?",
       `Os lembretes de ${item.name} serão cancelados. Os registros anteriores continuarão no histórico.`,
       [
-        { text: 'Cancelar', style: 'cancel' },
+        { text: "Cancelar", style: "cancel" },
         {
-          text: 'Excluir',
-          style: 'destructive',
+          text: "Excluir",
+          style: "destructive",
           onPress: async () => {
             try {
               await deleteMedicine(item.id);
             } catch {
               Alert.alert(
-                'Falha ao excluir',
-                'Tente novamente e confira os lembretes do medicamento.'
+                "Falha ao excluir",
+                "Tente novamente e confira os lembretes do medicamento."
               );
             }
           },
@@ -49,7 +57,7 @@ export default function Medicines({ navigation }) {
       style={{ backgroundColor: colors.bg }}
       contentContainerStyle={s.page}
       data={medicines}
-      keyExtractor={m => m.id}
+      keyExtractor={(m) => m.id}
       ListHeaderComponent={
         <>
           <Heading
@@ -58,7 +66,7 @@ export default function Medicines({ navigation }) {
           />
           <Button
             title="+ Adicionar medicamento"
-            onPress={() => navigation.navigate('MedicineForm')}
+            onPress={() => navigation.navigate("MedicineForm")}
           />
           <Button
             secondary
@@ -79,12 +87,12 @@ export default function Medicines({ navigation }) {
           <Text style={s.title}>{item.name}</Text>
           <Text style={s.body}>{item.dose}</Text>
           <Text style={[s.label, { marginTop: 10 }]}>
-            {item.times.join('  •  ')}
+            {item.times.join(" • ")}
           </Text>
           <Text style={s.body}>
             {item.reminders
-              ? '🔔 Lembretes diários ativados'
-              : 'Lembretes desligados'}
+              ? "🔔 Lembretes diários ativados"
+              : "Lembretes desligados"}
           </Text>
           {!!item.notes && <Text style={s.body}>{item.notes}</Text>}
           <View style={s.row}>
@@ -92,9 +100,11 @@ export default function Medicines({ navigation }) {
               secondary
               disabled={busy}
               title="Editar"
-              onPress={() => navigation.navigate('MedicineForm', {
-                id: item.id,
-              })}
+              onPress={() =>
+                navigation.navigate("MedicineForm", {
+                  id: item.id,
+                })
+              }
             />
             <Button
               secondary
