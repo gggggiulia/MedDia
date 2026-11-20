@@ -5,9 +5,9 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "primaryColor": "#5B4B8A",
     "android": {
       "package": "com.meddia.app",
-      "primaryColor": "#5B4B8A"
     },
     "plugins": [
       "expo-notifications",
