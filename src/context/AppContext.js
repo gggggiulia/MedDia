@@ -334,6 +334,35 @@ export function AppProvider({ children }) {
       })
     );
 
+    const deleteRecord = (id) =>
+    exclusive(() =>
+      commit({
+        ...current.current,
+        records: current.current.records.filter((r) => r.id !== id),
+      })
+    );
+
+  const clearHistory = (olderThanDays = null) =>
+    exclusive(() => {
+      if (!olderThanDays) {
+        return commit({
+          ...current.current,
+          records: [],
+          entries: [],
+        });
+      }
+
+      const limit = new Date();
+      limit.setDate(limit.getDate() - olderThanDays);
+      const limitIso = limit.toISOString();
+
+      return commit({
+        ...current.current,
+        records: current.current.records.filter((r) => r.at >= limitIso),
+        entries: current.current.entries.filter((e) => e.at >= limitIso),
+      });
+    });
+
   return (
     <Context.Provider
       value={{
@@ -350,6 +379,8 @@ export function AppProvider({ children }) {
         undoDose,
         addEntry,
         deleteEntry,
+        deleteRecord,
+        clearHistory
       }}
     >
       {children}

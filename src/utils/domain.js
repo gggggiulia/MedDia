@@ -132,7 +132,7 @@ export function todayDoses(medicines, records, date = new Date(), snoozed = {}) 
     .sort((a, b) => a.time.localeCompare(b.time));
 }
 
-export function getWeeklySummary(records, entries) {
+export function getWeeklySummary(records, entries, medicines = []) {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const limitIso = sevenDaysAgo.toISOString();
@@ -142,9 +142,38 @@ export function getWeeklySummary(records, entries) {
 
   const totalDoses = recentRecords.length;
   const takenDoses = recentRecords.filter((r) => r.status === "taken").length;
+  const skippedDoses = recentRecords.filter((r) => r.status === "skipped").length;
   const adherenceRate =
     totalDoses > 0 ? Math.round((takenDoses / totalDoses) * 100) : null;
 
+  // 1. Adesão detalhada por medicamento
+  // 1. Adesão detalhada por medicamento
+  const medMap = {};
+  recentRecords.forEach((r) => {
+    const key = r.medicineId || r.medicineName;
+    if (!medMap[key]) {
+      medMap[key] = { id: key, name: r.medicineName, taken: 0, total: 0 };
+    }
+    medMap[key].total += 1;
+    if (r.status === "taken") medMap[key].taken += 1;
+  });
+  const byMedicine = Object.values(medMap).map((m) => ({
+    ...m,
+    rate: Math.round((m.taken / m.total) * 100),
+  }));
+
+  // 2. Pontualidade (compara scheduledTime vs takenAtTime)
+  let delayedCount = 0;
+  recentRecords.forEach((r) => {
+    if (r.status === "taken" && r.scheduledTime && r.takenAtTime) {
+      const [sh, sm] = r.scheduledTime.split(":").map(Number);
+      const [th, tm] = r.takenAtTime.split(":").map(Number);
+      const diff = th * 60 + tm - (sh * 60 + sm);
+      if (diff > 30) delayedCount += 1;
+    }
+  });
+
+  // 3. Humor predominante
   const moodCounts = {};
   recentEntries.forEach((e) => {
     if (e.mood) {
@@ -154,25 +183,48 @@ export function getWeeklySummary(records, entries) {
   const topMood =
     Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 
-  const symptomCounts = {};
+  // 4. Sintomas com contagem e medicamentos associados no contexto do diário
+  const symptomMap = {};
   recentEntries.forEach((e) => {
-    if (e.symptoms) {
-      e.symptoms.split(", ").forEach((sym) => {
-        if (sym && sym !== "Não percebi sintomas") {
-          symptomCounts[sym] = (symptomCounts[sym] || 0) + 1;
-        }
-      });
-    }
+    if (!e.symptoms) return;
+    const medNames = (e.medicines || []).map((m) => m.name);
+
+    e.symptoms.split(", ").forEach((sym) => {
+      if (!sym || sym === "Não percebi sintomas") return;
+      if (!symptomMap[sym]) {
+        symptomMap[sym] = { name: sym, count: 0, meds: new Set() };
+      }
+      symptomMap[sym].count += 1;
+      medNames.forEach((n) => symptomMap[sym].meds.add(n));
+    });
   });
-  const topSymptom =
-    Object.entries(symptomCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+
+  const symptomsList = Object.values(symptomMap)
+    .map((s) => ({
+      name: s.name,
+      count: s.count,
+      meds: Array.from(s.meds),
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  const topSymptom = symptomsList[0]?.name || null;
+
+  // 5. Medicamentos com estoque baixo
+  const lowStockMeds = medicines.filter(
+    (m) => typeof m.stock === "number" && m.stock <= (m.lowStockAlert ?? 5)
+  );
 
   return {
     totalDoses,
     takenDoses,
+    skippedDoses,
     adherenceRate,
+    byMedicine,
+    delayedCount,
     topMood: topMood ? Number(topMood) : null,
     topSymptom,
+    symptomsList,
+    lowStockMeds,
   };
 }
 
