@@ -7,7 +7,7 @@
     "userInterfaceStyle": "light",
     "primaryColor": "#5B4B8A",
     "android": {
-      "package": "com.meddia.app",
+      "package": "com.meddia.app"
     },
     "plugins": [
       "expo-notifications",
