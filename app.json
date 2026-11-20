@@ -6,8 +6,12 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "android": {
-      "package": "com.meddia.app"
+      "package": "com.meddia.app",
+      "primaryColor": "#5B4B8A"
     },
-    "plugins": ["expo-notifications"]
+    "plugins": [
+      "expo-notifications",
+      "@react-native-community/datetimepicker"
+    ]
   }
 }

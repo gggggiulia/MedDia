@@ -9,11 +9,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   cancelNotifications,
   scheduleMedicine,
+  scheduleSnooze,
 } from "../services/notifications";
-import { uid } from "../utils/domain";
+import { addMinutesToTime, dayKey, doseKey, uid } from "../utils/domain";
 
 const KEY = "@meddia/v1";
-const initial = { medicines: [], records: [], entries: [] };
+const initial = { medicines: [], records: [], entries: [], snoozed: {} };
 const Context = createContext(null);
 
 export function AppProvider({ children }) {
@@ -29,15 +30,21 @@ export function AppProvider({ children }) {
 
     try {
       const raw = await AsyncStorage.getItem(KEY);
-      const saved = raw ? JSON.parse(raw) : initial;
+      const parsed = raw ? JSON.parse(raw) : initial;
 
       if (
-        !Array.isArray(saved.medicines) ||
-        !Array.isArray(saved.records) ||
-        !Array.isArray(saved.entries)
+        !Array.isArray(parsed.medicines) ||
+        !Array.isArray(parsed.records) ||
+        !Array.isArray(parsed.entries)
       ) {
         throw new Error("Dados inválidos");
       }
+
+      const saved = {
+        ...initial,
+        ...parsed,
+        snoozed: parsed.snoozed && typeof parsed.snoozed === "object" ? parsed.snoozed : {},
+      };
 
       current.current = saved;
       setData(saved);
@@ -78,11 +85,17 @@ export function AppProvider({ children }) {
   const saveMedicine = (values) =>
     exclusive(async () => {
       const old = current.current.medicines.find((m) => m.id === values.id);
+      const now = new Date();
+      const nowTime = `${String(now.getHours()).padStart(2, "0")}:${String(
+        now.getMinutes()
+      ).padStart(2, "0")}`;
 
       const med = {
         ...values,
         id: old?.id || uid(),
-        createdAt: old?.createdAt || new Date().toISOString(),
+        createdAt: old?.createdAt || now.toISOString(),
+        createdDay: old?.createdDay || dayKey(now),
+        skipBeforeToday: old ? old.skipBeforeToday ?? null : nowTime,
         notificationIds: [],
       };
 
@@ -154,11 +167,103 @@ export function AppProvider({ children }) {
       await commit({ ...current.current, medicines });
     });
 
+  const snoozeDose = (dose, minutes, cascade = false) =>
+    exclusive(async () => {
+      const nextSnoozed = { ...current.current.snoozed };
+      const newPrimaryTime = addMinutesToTime(dose.time, minutes);
+
+      nextSnoozed[dose.key] = {
+        time: newPrimaryTime,
+        cascade: !!cascade,
+      };
+
+      if (dose.med.reminders) {
+        await scheduleSnooze(dose.med, minutes, newPrimaryTime);
+      }
+
+      await commit({
+        ...current.current,
+        snoozed: nextSnoozed,
+      });
+    });
+
   const markDose = (dose, status) =>
     exclusive(async () => {
+      const now = new Date();
+      const takenTime = `${String(now.getHours()).padStart(2, "0")}:${String(
+        now.getMinutes()
+      ).padStart(2, "0")}`;
+      const day = dayKey(now);
+
       const prevRecord = current.current.records.find(
         (r) => r.key === dose.key
       );
+
+      let medicines = current.current.medicines;
+      let finishedStockMed = null;
+
+      if (status === "taken" && prevRecord?.status !== "taken") {
+        medicines = medicines.map((m) => {
+          if (m.id !== dose.med.id || typeof m.stock !== "number") return m;
+          const nextStock = Math.max(0, m.stock - 1);
+          const updated = { ...m, stock: nextStock };
+          if (m.durationType === "until_stock" && nextStock === 0) {
+            finishedStockMed = updated;
+          }
+          return updated;
+        });
+      }
+
+      // Se o tratamento era "até acabar o estoque" e chegou a 0, cancela lembretes futuros
+      if (finishedStockMed?.notificationIds?.length) {
+        await cancelNotifications(finishedStockMed.notificationIds);
+        medicines = medicines.map((m) =>
+          m.id === finishedStockMed.id
+            ? { ...m, notificationIds: [], reminders: false }
+            : m
+        );
+      }
+
+      const previousSnoozed = { ...current.current.snoozed };
+      const nextSnoozed = { ...current.current.snoozed };
+      const currentEntry = nextSnoozed[dose.key];
+      const userDisabledCascade =
+        typeof currentEntry === "object" &&
+        currentEntry !== null &&
+        currentEntry.cascade === false;
+
+      const shouldCascade =
+        status === "taken" &&
+        typeof dose.med.intervalHours === "number" &&
+        !userDisabledCascade;
+
+      delete nextSnoozed[dose.key];
+
+      if (shouldCascade) {
+        const followingTimes = dose.med.times
+          .filter((t) => t > dose.originalTime)
+          .sort();
+
+        followingTimes.forEach((t, idx) => {
+          const k = doseKey(dose.med.id, day, t);
+          const alreadyRecorded = current.current.records.some(
+            (r) => r.key === k
+          );
+          if (!alreadyRecorded) {
+            const offsetMinutes = (idx + 1) * dose.med.intervalHours * 60;
+            const recalculatedTime = addMinutesToTime(takenTime, offsetMinutes);
+
+            if (recalculatedTime !== t) {
+              nextSnoozed[k] = {
+                time: recalculatedTime,
+                cascade: true,
+              };
+            } else {
+              delete nextSnoozed[k];
+            }
+          }
+        });
+      }
 
       const record = {
         key: dose.key,
@@ -167,22 +272,16 @@ export function AppProvider({ children }) {
         medicineName: dose.med.name,
         dose: dose.med.dose,
         scheduledTime: dose.time,
+        takenAtTime: status === "taken" ? takenTime : null,
         status,
-        at: new Date().toISOString(),
+        at: now.toISOString(),
+        previousSnoozed,
       };
-
-      // Atualiza estoque automaticamente ao marcar como tomada
-      let medicines = current.current.medicines;
-      if (status === "taken" && prevRecord?.status !== "taken") {
-        medicines = medicines.map((m) => {
-          if (m.id !== dose.med.id || typeof m.stock !== "number") return m;
-          return { ...m, stock: Math.max(0, m.stock - 1) };
-        });
-      }
 
       await commit({
         ...current.current,
         medicines,
+        snoozed: nextSnoozed,
         records: [
           ...current.current.records.filter((r) => r.key !== dose.key),
           record,
@@ -194,7 +293,6 @@ export function AppProvider({ children }) {
     exclusive(async () => {
       const prevRecord = current.current.records.find((r) => r.key === key);
 
-      // Devolve 1 unidade ao estoque se a dose desfeita estava marcada como tomada
       let medicines = current.current.medicines;
       if (prevRecord?.status === "taken") {
         medicines = medicines.map((m) => {
@@ -205,9 +303,14 @@ export function AppProvider({ children }) {
         });
       }
 
+      const restoredSnoozed = prevRecord?.previousSnoozed
+        ? prevRecord.previousSnoozed
+        : current.current.snoozed;
+
       await commit({
         ...current.current,
         medicines,
+        snoozed: restoredSnoozed,
         records: current.current.records.filter((r) => r.key !== key),
       });
     });
@@ -242,6 +345,7 @@ export function AppProvider({ children }) {
         saveMedicine,
         deleteMedicine,
         restockMedicine,
+        snoozeDose,
         markDose,
         undoDose,
         addEntry,

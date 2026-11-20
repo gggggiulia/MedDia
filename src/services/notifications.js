@@ -13,7 +13,6 @@ Notifications.setNotificationHandler({
 
 async function ensureChannelAndPermission() {
   if (Platform.OS === "android") {
-    // No Expo Go SDK 53+, criar canal pode falhar; tentamos sem quebrar o fluxo
     try {
       await Notifications.setNotificationChannelAsync("meddia-reminders", {
         name: "Horários dos medicamentos",
@@ -79,11 +78,33 @@ export async function scheduleMedicine(medicine) {
     }
 
     return ids;
-  } catch (error) {
+  } catch {
     await cancelNotifications(ids);
     throw new Error(
       "No Expo Go os alarmes diários são limitados pelo Android. No APK do MedDia eles funcionam normalmente."
     );
+  }
+}
+
+export async function scheduleSnooze(medicine, minutes, newTime) {
+  try {
+    await ensureChannelAndPermission();
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "Lembrete adiado • MedDia",
+        body: `${medicine.name} • ${medicine.dose} (${newTime})`,
+        sound: "default",
+        data: { medicineId: medicine.id },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds: Math.max(60, minutes * 60),
+        channelId: "meddia-reminders",
+      },
+    });
+  } catch {
+    Vibration.vibrate([0, 200, 100, 200]);
   }
 }
 
@@ -106,7 +127,6 @@ export async function testNotification() {
 
     return { simulated: false };
   } catch {
-    // Fallback garantido quando o Expo Go bloqueia notificações nativas
     Vibration.vibrate([0, 400, 150, 400]);
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);

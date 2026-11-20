@@ -4,7 +4,51 @@ export const uid = () =>
 export const dayKey = (date = new Date()) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
+export function addDaysToDayKey(startDay, daysToAdd) {
+  const [y, m, d] = startDay.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + daysToAdd);
+  return dayKey(dt);
+}
+
+export function formatDayKeyBR(dayStr) {
+  if (!dayStr) return "";
+  const [y, m, d] = dayStr.split("-");
+  return `${d}/${m}/${y}`;
+}
+
 export const validTime = (value) => /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+
+export function formatTimeInput(raw) {
+  const digits = raw.replace(/\D/g, "").slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+}
+
+export function addMinutesToTime(time, minutesToAdd) {
+  const [h, m] = time.split(":").map(Number);
+  const total = (((h * 60 + m + minutesToAdd) % 1440) + 1440) % 1440;
+  const hh = String(Math.floor(total / 60)).padStart(2, "0");
+  const mm = String(total % 60).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+export function generateIntervalTimes(startTime, intervalHours) {
+  if (!validTime(startTime)) {
+    throw new Error("Informe o horário inicial no formato HH:MM (ex.: 08:00).");
+  }
+  const step = Number(intervalHours);
+  if (!step || step < 1 || step > 24) {
+    throw new Error("Escolha um intervalo válido em horas.");
+  }
+
+  const count = Math.floor(24 / step);
+  const times = [];
+  for (let i = 0; i < count; i++) {
+    times.push(addMinutesToTime(startTime, i * step * 60));
+  }
+  return Array.from(new Set(times)).sort();
+}
 
 export function parseTimes(text) {
   const times = text.split(",").map((t) => t.trim());
@@ -22,18 +66,69 @@ export function parseTimes(text) {
 
 export const doseKey = (id, day, time) => `${id}|${day}|${time}`;
 
-export function todayDoses(medicines, records, date = new Date()) {
+export function isMedicineFinished(med, date = new Date()) {
+  const today = dayKey(date);
+  const mode = med.durationType || "continuous";
+
+  if (mode === "days" || mode === "until_date") {
+    if (med.endDate && today > med.endDate) return true;
+  }
+
+  if (mode === "until_stock") {
+    if (typeof med.stock === "number" && med.stock <= 0) return true;
+  }
+
+  return false;
+}
+
+export function todayDoses(medicines, records, date = new Date(), snoozed = {}) {
   const day = dayKey(date);
 
   return medicines
-    .flatMap((med) =>
-      med.times.map((time) => ({
-        key: doseKey(med.id, day, time),
-        med,
-        time,
-        record: records.find((r) => r.key === doseKey(med.id, day, time)),
-      })),
-    )
+    .flatMap((med) => {
+      const mode = med.durationType || "continuous";
+
+      // Não exibe antes da data de início ou após a data final do tratamento
+      if (med.startDate && day < med.startDate) return [];
+      if ((mode === "days" || mode === "until_date") && med.endDate && day > med.endDate) {
+        return [];
+      }
+
+      const outOfStockStop =
+        mode === "until_stock" && typeof med.stock === "number" && med.stock <= 0;
+
+      return med.times
+        .filter((originalTime) => {
+          if (med.createdDay === day && med.skipBeforeToday) {
+            return originalTime >= med.skipBeforeToday;
+          }
+          return true;
+        })
+        .map((originalTime) => {
+          const key = doseKey(med.id, day, originalTime);
+          const record = records.find((r) => r.key === key);
+
+          // Se acabou o estoque no modo "até acabar o estoque", mantém apenas doses já registradas hoje
+          if (outOfStockStop && !record) return null;
+
+          const entry = snoozed[key];
+          const snoozedTime =
+            typeof entry === "string" ? entry : entry?.time || null;
+          const snoozedCascade =
+            typeof entry === "object" && entry !== null ? !!entry.cascade : false;
+
+          return {
+            key,
+            med,
+            originalTime,
+            time: snoozedTime || originalTime,
+            snoozedTime,
+            snoozedCascade,
+            record,
+          };
+        })
+        .filter(Boolean);
+    })
     .sort((a, b) => a.time.localeCompare(b.time));
 }
 

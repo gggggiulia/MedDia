@@ -4,6 +4,7 @@ import { useApp } from "../context/AppContext";
 import { Button, Card, Empty, Field, Heading, s } from "../components/UI";
 import { testNotification } from "../services/notifications";
 import { colors } from "../theme";
+import { formatDayKeyBR, isMedicineFinished } from "../utils/domain";
 
 export default function Medicines({ navigation }) {
   const { medicines, deleteMedicine, restockMedicine, busy } = useApp();
@@ -125,6 +126,31 @@ export default function Medicines({ navigation }) {
                   ? "🔔 Lembretes diários ativados"
                   : "Lembretes desligados"}
               </Text>
+
+              {item.durationType && item.durationType !== "continuous" && (
+              <Text
+                style={[
+                  s.body,
+                  {
+                    marginTop: 4,
+                    fontWeight: "600",
+                    color: isMedicineFinished(item)
+                      ? colors.success
+                      : colors.primary,
+                  },
+                ]}
+              >
+                {isMedicineFinished(item)
+                  ? "✓ Tratamento concluído"
+                  : item.durationType === "until_stock"
+                  ? "📦 Duração: até acabar o estoque"
+                  : item.durationType === "days"
+                  ? `📅 ${item.durationDays} dias (até ${formatDayKeyBR(
+                      item.endDate
+                    )})`
+                  : `📅 Até ${formatDayKeyBR(item.endDate)}`}
+              </Text>
+            )}
 
               {hasStock && (
                 <View
